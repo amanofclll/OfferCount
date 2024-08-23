@@ -22,5 +22,12 @@ function calculateFinalAmount() {
     // Apply Prepaid Discount
     let finalAmount = amountAfterGoldCardDiscount - (amountAfterGoldCardDiscount * (prepaidDiscount / 100));
 
-    document.getElementById('result').innerHTML = `Final Amount Payable: ₹${finalAmount.toFixed(2)}`;
+    // Calculate Total Discount and Total Saving
+    let totalDiscount = initialSaleAmount - finalAmount;
+    let totalDiscountPercentage = (totalDiscount / initialSaleAmount) * 100;
+    let totalSaving = totalDiscount;
+
+    document.getElementById('finalAmount').innerHTML = `Final Amount Payable: ₹${finalAmount.toFixed(2)}`;
+    document.getElementById('totalDiscount').innerHTML = `Total Discount: ${totalDiscountPercentage.toFixed(2)}%`;
+    document.getElementById('totalSaving').innerHTML = `Total Saving: ₹${totalSaving.toFixed(2)}`;
 }
