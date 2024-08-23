@@ -67,6 +67,10 @@ button:hover {
     color: #ffffff;
 }
 
+#result p {
+    margin: 10px 0;
+}
+
 label input[type="checkbox"] {
     width: auto;
     display: inline-block;
