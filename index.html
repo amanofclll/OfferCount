@@ -139,9 +139,9 @@ function readCSVFile(file) {
     });
 }
 
-// Function to format values to remove decimal digits
+// Function to format values to 2 decimal places
 function formatValue(value) {
-    return parseFloat(value).toFixed(0);
+    return parseFloat(value).toFixed(2);
 }
 
 // Function to search the CSV
