@@ -16,6 +16,7 @@
             align-items: center;
             height: 100vh;
             box-sizing: border-box;
+            overflow: hidden; /* Prevent body overflow */
         }
         .container {
             max-width: 800px;
@@ -24,6 +25,7 @@
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Box shadow for better visibility */
+            overflow: auto; /* Allow container to scroll if needed */
         }
         .logo {
             text-align: center;
@@ -36,7 +38,7 @@
             text-align: center;
             margin-bottom: 20px;
         }
-        input[type="file"], select, input[type="text"], button {
+        input[type="file"], select, input[type="text"], button, input[type="date"] {
             display: block;
             margin-bottom: 20px;
             padding: 10px;
@@ -45,7 +47,7 @@
             border-radius: 5px;
             box-sizing: border-box;
         }
-        input[type="file"], select, input[type="text"] {
+        input[type="file"], select, input[type="text"], input[type="date"] {
             background-color: #3e2e4a; /* Input background color */
             color: white; /* Input text color */
         }
@@ -56,6 +58,12 @@
         }
         button:hover {
             background-color: #6c5b7b; /* Button hover color */
+        }
+        /* Scrollable table container */
+        .table-container {
+            max-height: 400px; /* Set max height for the table */
+            overflow-y: auto; /* Enable vertical scroll */
+            margin-top: 20px; /* Space between summary and table */
         }
         table {
             width: 100%;
@@ -78,6 +86,18 @@
         }
         tbody tr:hover {
             background-color: #4a3f5b; /* Row hover color */
+        }
+        /* Styles for summary section */
+        .summary {
+            margin-top: 20px;
+            background-color: #3e2e4a;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+        .summary p {
+            margin: 0;
+            color: #e0e0e0;
         }
     </style>
 </head>
@@ -102,26 +122,44 @@
     
     <!-- Input for search term -->
     <input type="text" id="searchInput" placeholder="Enter Order Number or AWB Number">
+
+    <!-- Date range filter -->
+    <label for="startDate">Start Date:</label>
+    <input type="date" id="startDate">
+    
+    <label for="endDate">End Date:</label>
+    <input type="date" id="endDate">
     
     <!-- Button to trigger search -->
     <button onclick="searchCSV()">Search</button>
+
+    <!-- Button to filter orders with Freight RTO Amount -->
+    <button onclick="filterRTO()" id="rtoButton">RTOS</button>
+
+    <!-- Summary Section for RTOS orders -->
+    <div class="summary" id="rtoSummary" style="display: none;">
+        <p><strong>Total RTOS Orders:</strong> <span id="totalRTOOrders">0</span></p>
+        <p><strong>Total Freight Amount for RTOS Orders:</strong> ₹<span id="totalRTOFreightAmount">0.00</span></p>
+    </div>
     
-    <!-- Table to display results -->
-    <table id="resultsTable">
-        <thead>
-            <tr>
-                <th>Date, Time</th>
-                <th>Order Number</th>
-                <th>AWB Number</th>
-                <th>Freight Forward Amount</th>
-                <th>Freight RTO Amount</th>
-                <th>Freight Cod Charges</th>
-                <th>Freight Cod Adjusted</th>
-                <th>Freight Total Amount</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-    </table>
+    <!-- Scrollable container for the results table -->
+    <div class="table-container">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Date, Time</th>
+                    <th>Order Number</th>
+                    <th>AWB Number</th>
+                    <th>Freight Forward Amount</th>
+                    <th>Freight RTO Amount</th>
+                    <th>Freight Cod Charges</th>
+                    <th>Freight Cod Adjusted</th>
+                    <th>Freight Total Amount</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
 </div>
 
 <script>
@@ -144,19 +182,22 @@ function formatValue(value) {
     return parseFloat(value).toFixed(2);
 }
 
+// Function to parse dates from CSV
+function parseDate(dateString) {
+    return new Date(dateString);
+}
+
 // Function to search the CSV
 async function searchCSV() {
     const fileInput = document.getElementById('csvFile');
     const searchOption = document.getElementById('searchOption').value;
     const searchTerm = document.getElementById('searchInput').value.trim();
 
+    const startDate = document.getElementById('startDate').value ? new Date(document.getElementById('startDate').value) : null;
+    const endDate = document.getElementById('endDate').value ? new Date(document.getElementById('endDate').value) : null;
+
     if (!fileInput.files.length) {
         alert("Please upload a CSV file.");
-        return;
-    }
-
-    if (!searchTerm) {
-        alert(`Please enter a ${searchOption}.`);
         return;
     }
 
@@ -170,9 +211,11 @@ async function searchCSV() {
     rows.forEach(row => {
         const searchIndex = searchOption === 'Order Number' ? 1 : 2; // Adjust index based on search option
         const searchValue = searchOption === 'AWB Number' ? formatValue(row[searchIndex]) : row[searchIndex];
-        
-        if (searchValue && searchValue.includes(searchTerm)) {
-            // Create a new table row with the filtered columns
+
+        const date = new Date(row[0]);
+        const inDateRange = (!startDate || date >= startDate) && (!endDate || date <= endDate);
+
+        if (searchValue && searchValue.includes(searchTerm) && inDateRange) {
             const newRow = `<tr>
                 <td>${row[0]}</td>   <!-- Date, Time -->
                 <td>${row[1]}</td>   <!-- Order Number -->
@@ -186,6 +229,49 @@ async function searchCSV() {
             tableBody.insertAdjacentHTML('beforeend', newRow);
         }
     });
+}
+
+// Function to filter RTO Orders
+async function filterRTO() {
+    const fileInput = document.getElementById('csvFile');
+    if (!fileInput.files.length) {
+        alert("Please upload a CSV file.");
+        return;
+    }
+
+    const rows = await readCSVFile(fileInput.files[0]);
+
+    const tableBody = document.getElementById('tableBody');
+    tableBody.innerHTML = '';
+
+    let totalRTOOrders = 0;
+    let totalFreightAmount = 0;
+
+    rows.forEach(row => {
+        const freightRTO = parseFloat(row[8]);
+        if (!isNaN(freightRTO) && freightRTO > 0) {
+            const freightTotal = parseFloat(row[11]);
+            totalRTOOrders++;
+            totalFreightAmount += freightTotal;
+
+            const newRow = `<tr>
+                <td>${row[0]}</td>   <!-- Date, Time -->
+                <td>${row[1]}</td>   <!-- Order Number -->
+                <td>${formatValue(row[2])}</td>   <!-- AWB Number -->
+                <td>${formatValue(row[7])}</td>  <!-- Freight Forward Amount -->
+                <td>${formatValue(row[8])}</td>  <!-- Freight RTO Amount -->
+                <td>${formatValue(row[9])}</td>  <!-- Freight Cod Charges -->
+                <td>${formatValue(row[10])}</td>  <!-- Freight Cod Adjusted -->
+                <td>${formatValue(row[11])}</td>  <!-- Freight Total Amount -->
+            </tr>`;
+            tableBody.insertAdjacentHTML('beforeend', newRow);
+        }
+    });
+
+    // Display total RTO orders and Freight Total Amount
+    document.getElementById('totalRTOOrders').textContent = totalRTOOrders;
+    document.getElementById('totalRTOFreightAmount').textContent = totalFreightAmount.toFixed(2);
+    document.getElementById('rtoSummary').style.display = 'block';
 }
 </script>
 
