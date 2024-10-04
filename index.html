@@ -126,6 +126,7 @@
     
     <button onclick="searchCSV()">Search</button>
     <button onclick="filterRTO()">RTOS</button>
+    <button onclick="reversePick()">Reverse Pick</button> <!-- NEW BUTTON FOR REVERSE PICK -->
     <button onclick="exportCSV()">Export</button>
 
     <div id="noResults">No matching records found.</div>
@@ -134,6 +135,12 @@
         <p>Total RTOS Orders: <span id="totalRTOOrders">0</span></p>
         <p>Total Freight Amount for RTOS Orders: ₹<span id="totalRTOFreightAmount">0.00</span></p>
         <p>Total Number of All Orders: <span id="totalAllOrders">0</span></p>
+    </div>
+
+    <div class="summary" id="reversePickSummary"> <!-- NEW SUMMARY SECTION FOR REVERSE PICK -->
+        <p>Total Reverse Pick-up Orders: <span id="totalReversePickOrders">0</span></p>
+        <p>Total Freight Amount for Reverse Pick-up Orders: ₹<span id="totalReversePickFreightAmount">0.00</span></p>
+        <p>Total Number of All Orders: <span id="totalReverseAllOrders">0</span></p>
     </div>
 
     <div class="table-container">
@@ -208,6 +215,7 @@ function displayRows(rows) {
 function updateTotalOrders() {
     const totalAllOrders = csvData.length;
     document.getElementById('totalAllOrders').textContent = totalAllOrders;
+    document.getElementById('totalReverseAllOrders').textContent = totalAllOrders; // For Reverse Pick summary
 }
 
 // Function to search the CSV
@@ -237,7 +245,6 @@ function filterRTO() {
     const rtoRows = csvData.filter(row => parseFloat(row['Freight RTO Amount']) > 0);
     const totalRTOOrders = rtoRows.length;
     
-    // Change the total amount calculation to sum 'Freight Total Amount'
     const totalFreightRTOAmount = rtoRows.reduce((total, row) => total + parseFloat(row['Freight Total Amount'] || 0), 0);
 
     if (totalRTOOrders > 0) {
@@ -254,6 +261,29 @@ function filterRTO() {
     }
 
     renderChart(); // Render the chart after filtering RTO
+}
+
+// NEW: Function to filter Reverse Pick Orders (Order Number NOT ending with SCP)
+function reversePick() {
+    const reversePickRows = csvData.filter(row => !row['Order Number'].endsWith('SCP'));
+    const totalReversePickOrders = reversePickRows.length;
+
+    const totalReversePickFreightAmount = reversePickRows.reduce((total, row) => total + parseFloat(row['Freight Total Amount'] || 0), 0);
+
+    if (totalReversePickOrders > 0) {
+        displayRows(reversePickRows);
+        document.getElementById('totalReversePickOrders').textContent = totalReversePickOrders;
+        document.getElementById('totalReversePickFreightAmount').textContent = totalReversePickFreightAmount.toFixed(2);
+        document.getElementById('reversePickSummary').style.display = 'block'; // Show summary
+    } else {
+        document.getElementById('tableBody').innerHTML = '';
+        document.getElementById('totalReversePickOrders').textContent = '0';
+        document.getElementById('totalReversePickFreightAmount').textContent = '0.00';
+        document.getElementById('reversePickSummary').style.display = 'none'; // Hide summary
+        document.getElementById('noResults').style.display = 'block';
+    }
+
+    renderChart(); // Re-render the chart with filtered data
 }
 
 // Function to export filtered results to CSV
