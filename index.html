@@ -127,6 +127,7 @@
     <button onclick="searchCSV()">Search</button>
     <button onclick="filterRTO()">RTOS</button>
     <button onclick="exportCSV()">Export</button>
+    <button onclick="reversePickup()">Reverse Pick</button>
 
     <div id="noResults">No matching records found.</div>
 
@@ -252,94 +253,91 @@ function filterRTO() {
         document.getElementById('rtoSummary').style.display = 'none'; // Hide summary
         document.getElementById('noResults').style.display = 'block';
     }
-
-    renderChart(); // Render the chart after filtering RTO
 }
 
-// Function to export filtered results to CSV
+// Function to filter Reverse Pick Orders
+function reversePickup() {
+    const reversePickRows = csvData.filter(row => 
+        row['Order Number'] && !row['Order Number'].endsWith('SCP')
+    );
+    const totalReversePickupOrders = reversePickRows.length;
+
+    // Change the total amount calculation to sum 'Freight Total Amount'
+    const totalFreightRTOAmount = reversePickRows.reduce((total, row) => 
+        total + parseFloat(row['Freight Total Amount'] || 0), 0
+    );
+
+    // Update the table and summary
+    if (totalReversePickupOrders > 0) {
+        displayRows(reversePickRows);
+        document.getElementById('totalRTOOrders').textContent = totalReversePickupOrders;
+        document.getElementById('totalRTOFreightAmount').textContent = totalFreightRTOAmount.toFixed(2);
+        document.getElementById('rtoSummary').style.display = 'block'; // Show summary
+    } else {
+        document.getElementById('tableBody').innerHTML = '';
+        document.getElementById('totalRTOOrders').textContent = '0';
+        document.getElementById('totalRTOFreightAmount').textContent = '0.00';
+        document.getElementById('rtoSummary').style.display = 'none'; // Hide summary
+        document.getElementById('noResults').style.display = 'block';
+    }
+}
+
+// Function to export filtered results back to a CSV file
 function exportCSV() {
-    const tableBody = document.getElementById('tableBody');
-    const rows = Array.from(tableBody.querySelectorAll('tr'));
-    const csvContent = rows.map(row => {
-        const cols = Array.from(row.querySelectorAll('td'));
-        return cols.map(col => col.textContent).join(',');
+    const rows = document.querySelectorAll('#tableBody tr');
+    const csvContent = Array.from(rows).map(row => {
+        const cells = row.querySelectorAll('td');
+        return Array.from(cells).map(cell => cell.textContent).join(',');
     }).join('\n');
-
+    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'filtered_results.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'filtered_orders.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
-// Function to render the RTO amounts chart
+// Render chart with RTO amounts
 function renderChart() {
+    const ctx = document.getElementById('chartContainer').getContext('2d');
     const rtoData = csvData.filter(row => parseFloat(row['Freight RTO Amount']) > 0);
-    const chartData = {};
+    
+    const chartData = rtoData.map(row => ({
+        date: new Date(row['Date, Time']).toLocaleDateString(),
+        amount: parseFloat(row['Freight RTO Amount'])
+    }));
 
-    rtoData.forEach(row => {
-        const date = row['Date, Time'].split(' ')[0]; // Extract date
-        const rtoAmount = parseFloat(row['Freight RTO Amount']) || 0;
-        if (!chartData[date]) {
-            chartData[date] = 0;
-        }
-        chartData[date] += rtoAmount;
+    const labels = [...new Set(chartData.map(data => data.date))];
+    const amounts = labels.map(label => {
+        return chartData
+            .filter(data => data.date === label)
+            .reduce((total, data) => total + data.amount, 0);
     });
-
-    const dates = Object.keys(chartData);
-    const rtoAmounts = Object.values(chartData);
-
-    const ctx = document.createElement('canvas');
-    document.getElementById('chartContainer').innerHTML = ''; // Clear previous chart
-    document.getElementById('chartContainer').appendChild(ctx);
 
     new Chart(ctx, {
         type: 'line',
         data: {
-            labels: dates,
+            labels: labels,
             datasets: [{
                 label: 'RTO Amounts',
-                data: rtoAmounts,
-                backgroundColor: 'rgba(87, 75, 144, 0.5)',
-                borderColor: 'rgba(87, 75, 144, 1)',
-                borderWidth: 2,
-                fill: true,
+                data: amounts,
+                borderColor: '#574b90',
+                fill: false,
+                tension: 0.1
             }]
         },
         options: {
-            responsive: true,
             scales: {
                 y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'RTO Amount (₹)'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Date'
-                    }
+                    beginAtZero: true
                 }
             }
         }
     });
 }
-
-// Load data from local storage if available
-window.onload = function() {
-    const savedCsvData = localStorage.getItem('csvFileContent');
-    if (savedCsvData) {
-        csvData = JSON.parse(savedCsvData);
-        displayRows(csvData); // Re-populate the table with previous data
-        updateTotalOrders(); // Update total orders count
-        renderChart(); // Render initial chart
-    }
-};
 </script>
 
 </body>
